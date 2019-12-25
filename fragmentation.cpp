@@ -1,17 +1,17 @@
 #include "fragmentation.h"
 #include <fstream>
 #include <algorithm>
+#include <cilk/cilk.h>
+#include <cilk/cilk_api.h>
+#include <cilk/reducer_opadd.h>
+#include <cilk/reducer_vector.h>
 
 using namespace std;
 
-/// вектор, содержащий box-ы, являющиеся частью рабочего пространства
-std::vector<Box> solution;
-/// вектор, содержащий box-ы, не являющиеся частью рабочего пространства
-std::vector<Box> not_solution;
-/// вектор, содержащий box-ы, находящиеся на границе между "рабочим" и "нерабочим" пространством
-std::vector<Box> boundary;
-/// вектор, хранящий box-ы, анализируемые на следующей итерации алгоритма
-std::vector<Box> temporary_boxes;
+cilk::reducer<cilk::op_vector<Box>> solution;
+cilk::reducer<cilk::op_vector<Box>> not_solution;
+cilk::reducer<cilk::op_vector<Box>> boundary;
+cilk::reducer<cilk::op_vector<Box>> temporary_boxes;
 
 /// функции gj()
 //------------------------------------------------------------------------------------------
@@ -150,14 +150,14 @@ void low_level_fragmentation::GetBoxType(const Box& box)
 	GetMinMax(box, min_max_vecs);
 
 	switch (ClasifyBox(min_max_vecs)) {
-		case 0: not_solution.push_back(box); break;
-		case 1: solution.push_back(box); break;
+		case 0: not_solution->push_back(box); break;
+		case 1: solution->push_back(box); break;
 		case 2: 
 				GetNewBoxes(box, pair);
-				temporary_boxes.push_back(pair.first);
-				temporary_boxes.push_back(pair.second);
+				temporary_boxes->push_back(pair.first);
+				temporary_boxes->push_back(pair.second);
 				break;
-		case 3: boundary.push_back(box); break;
+		case 3: boundary->push_back(box); break;
 	}
 	
 }
@@ -251,12 +251,15 @@ void high_level_analysis::GetSolution()
 	int iteration_count = 0;
 
 	iteration_count = FindTreeDepth() + 1;
-	temporary_boxes.push_back(current_box);
+	temporary_boxes->push_back(current_box);
 
 	for (int i = 0; i < iteration_count; ++i) {
-		number_of_box_on_level = temporary_boxes.size();
-		vector<Box> curr_boxes(temporary_boxes);
-		temporary_boxes.clear();
+		vector<Box> tmp;
+		temporary_boxes.move_out(tmp);
+		number_of_box_on_level = tmp.size();
+		vector<Box> curr_boxes(tmp);
+		tmp.clear();
+		temporary_boxes.set_value(tmp);
 
 		for (int j = 0; j < number_of_box_on_level; ++j) {
 			GetBoxType(curr_boxes[j]);
@@ -268,38 +271,45 @@ void high_level_analysis::GetSolution()
 //------------------------------------------------------------------------------------------
 void WriteResults( const char* file_names[] )
 {
-	double xmin, ymin, width, height;
+	double xmin, ymin, w, h;
 	ofstream fout;
+	vector<Box> solution_vect;
+
+	solution.move_out(solution_vect);
 
 	fout.open(file_names[0]);
 
-	for (Box box : solution) {
+	for (int i = 0; i < solution_vect.size(); i++) {
 		
-		box.GetParameters(xmin, ymin, width, height);
+		solution_vect[i].GetParameters(xmin, ymin, w, h);
 
-		fout << xmin << " " << ymin << " " << width << " " << height << '\n';
+		fout << xmin << " " << ymin << " " << w << " " << h << '\n';
 	}
 
 	fout.close();
 
 	fout.open(file_names[1]);
 
-	for (Box box : boundary) {
+	boundary.move_out(solution_vect);
 
-		box.GetParameters(xmin, ymin, width, height);
+	for (int i = 0; i < solution_vect.size(); i++) {
 
-		fout << xmin << " " << ymin << " " << width << " " << height << '\n';
+		solution_vect[i].GetParameters(xmin, ymin, w, h);
+
+		fout << xmin << " " << ymin << " " << w << " " << h << '\n';
 	}
 
 	fout.close();
 
 	fout.open(file_names[2]);
 
-	for (Box box : not_solution) {
+	not_solution.move_out(solution_vect);
 
-		box.GetParameters(xmin, ymin, width, height);
+	for (int i = 0; i < solution_vect.size(); i++) {
 
-		fout << xmin << " " << ymin << " " << width << " " << height << '\n';
+		solution_vect[i].GetParameters(xmin, ymin, w, h);
+
+		fout << xmin << " " << ymin << " " << w << " " << h << '\n';
 	}
 
 	fout.close();
