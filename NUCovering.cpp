@@ -2,18 +2,19 @@
 #include <locale.h>
 #include <iostream>
 #include <chrono>
+#include <cilk/cilk_api.h>
 
 using namespace std::chrono;
 using namespace std;
 
-/// параметры начальной прямоугольной области
+/// РїР°СЂР°РјРµС‚СЂС‹ РЅР°С‡Р°Р»СЊРЅРѕР№ РїСЂСЏРјРѕСѓРіРѕР»СЊРЅРѕР№ РѕР±Р»Р°СЃС‚Рё
 const double g_l1_max = 12.0;
 const double g_l2_max = g_l1_max;
 const double g_l1_min = 8.0;
 const double g_l2_min = g_l1_min;
 const double g_l0 = 5.0;
 
-/// точность аппроксимации рабочего пространства
+/// С‚РѕС‡РЅРѕСЃС‚СЊ Р°РїРїСЂРѕРєСЃРёРјР°С†РёРё СЂР°Р±РѕС‡РµРіРѕ РїСЂРѕСЃС‚СЂР°РЅСЃС‚РІР°
 const double g_precision = 0.25;
 
 
@@ -26,6 +27,9 @@ int main()
 
 	double min_x = -10, min_y = 0, x_width = 24, y_height = 16;
 
+	__cilkrts_end_cilk();
+	__cilkrts_set_param("nworkers", "4");
+
 	high_level_analysis main_object(min_x, min_y, x_width, y_height);
 
 	t1 = high_resolution_clock::now();
@@ -34,11 +38,12 @@ int main()
 
 	t2 = high_resolution_clock::now();
 
-	// Внимание! здесь необходимо определить пути до выходных файлов!
+	// Р’РЅРёРјР°РЅРёРµ! Р·РґРµСЃСЊ РЅРµРѕР±С…РѕРґРёРјРѕ РѕРїСЂРµРґРµР»РёС‚СЊ РїСѓС‚Рё РґРѕ РІС‹С…РѕРґРЅС‹С… С„Р°Р№Р»РѕРІ!
 	const char* out_files[3] = { "solution.txt", "boundary.txt", "not_solution.txt" };
 	WriteResults( out_files );
 
 	duration = (t2 - t1);
+	std::cout << "Number of workers: " << __cilkrts_get_nworkers() << std::endl;
 	cout << "Duration : " << duration.count() << " seconds" << endl;
 
 	return 0;
