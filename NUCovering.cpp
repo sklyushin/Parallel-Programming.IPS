@@ -2,7 +2,6 @@
 #include <locale.h>
 #include <iostream>
 #include <chrono>
-#include <cilk/cilk_api.h>
 
 using namespace std::chrono;
 using namespace std;
@@ -27,9 +26,6 @@ int main()
 
 	double min_x = -10, min_y = 0, x_width = 24, y_height = 16;
 
-	__cilkrts_end_cilk();
-	__cilkrts_set_param("nworkers", "4");
-
 	high_level_analysis main_object(min_x, min_y, x_width, y_height);
 
 	t1 = high_resolution_clock::now();
@@ -43,7 +39,6 @@ int main()
 	WriteResults( out_files );
 
 	duration = (t2 - t1);
-	std::cout << "Number of workers: " << __cilkrts_get_nworkers() << std::endl;
 	cout << "Duration : " << duration.count() << " seconds" << endl;
 
 	return 0;
